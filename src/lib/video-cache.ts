@@ -205,15 +205,24 @@ const TOUCH_INTERVAL_MS = 30_000;
 
 export async function touchMeta(key: string): Promise<void> {
   const now = Date.now();
-  const previous = lastTouchAt.get(key);
-  if (previous !== undefined && now - previous < TOUCH_INTERVAL_MS) return;
-  lastTouchAt.set(key, now);
+  // 先按所有变体更新内存里的 lastTouchAt，避免同一缓存内容因 key 形式不同频繁写盘
+  const variants = getCacheKeyVariants(key);
+  const throttled = variants.some((v) => {
+    const previous = lastTouchAt.get(v);
+    return previous !== undefined && now - previous < TOUCH_INTERVAL_MS;
+  });
+  if (throttled) return;
+  variants.forEach((v) => lastTouchAt.set(v, now));
 
   try {
-    const record = await metaStore.get(key);
-    if (!record) return;
-    record.lastAccess = now;
-    await metaStore.put(record);
+    // 按每个变体都尝试查找并更新 lastAccess，保证 LRU 语义正确
+    for (const v of variants) {
+      const record = await metaStore.get(v);
+      if (record) {
+        record.lastAccess = now;
+        await metaStore.put(record);
+      }
+    }
   } catch {
     // 元数据写入失败不影响播放
   }
@@ -236,11 +245,43 @@ export async function openVideoCache(): Promise<Cache | null> {
   }
 }
 
+/**
+ * 把缓存键在「相对路径形式」和「绝对 URL 形式」之间互相换算，用于
+ * 解决 cache.put 写入时某些浏览器自动把相对路径补成带 origin 的绝对 URL，
+ * 导致读取侧用相对路径查不到的问题。
+ */
+function getCacheKeyVariants(key: string): string[] {
+  const variants: string[] = [key];
+  try {
+    if (typeof location !== 'undefined') {
+      const origin = location.origin;
+      // 传入 key 是相对路径（以 / 开头，不是 //，不是 http...）
+      if (key.startsWith('/') && !key.startsWith('//') && !/^https?:/i.test(key)) {
+        const abs = `${origin}${key}`;
+        if (abs !== key) variants.push(abs);
+      } else {
+        // 传入 key 是绝对 URL：如果 origin 一致，推回相对路径再查一次
+        const u = new URL(key);
+        if (u.origin === origin && u.pathname !== '') {
+          const rel = `${u.pathname}${u.search}${u.hash}`;
+          if (rel !== key) variants.push(rel);
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return Array.from(new Set(variants));
+}
+
 export async function hasCachedSegment(key: string): Promise<boolean> {
   const cache = await openVideoCache();
   if (!cache) return false;
   try {
-    return (await cache.match(key)) !== undefined;
+    for (const candidate of getCacheKeyVariants(key)) {
+      if ((await cache.match(candidate)) !== undefined) return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -600,25 +641,43 @@ export interface CachedFragment {
   costMs: number;
 }
 
-/** 读取缓存片段，同时取回预取时记录的真实耗时（供合成 LoaderStats 用） */
-export async function readCachedSegment(key: string): Promise<CachedFragment | null> {
+/** 读取缓存片段，同时取回预取时记录的真实耗时（供合成 LoaderStats 用）。
+ *  返回 { fragment, matchedKey }，便于后续用同一个 matchedKey 去更新 IndexedDB 的
+ *  lastAccess（因为预取写入时可能用了绝对 URL 作为 key，和读取侧传的相对路径不一致）。
+ */
+export async function readCachedSegment(
+  key: string
+): Promise<{ fragment: CachedFragment; matchedKey: string } | null> {
   const cache = await openVideoCache();
   if (!cache) return null;
 
   let hit: Response | undefined;
+  let matchedKey = key;
   try {
-    hit = await cache.match(key);
+    for (const candidate of getCacheKeyVariants(key)) {
+      hit = await cache.match(candidate);
+      if (hit) {
+        matchedKey = candidate;
+        break;
+      }
+    }
   } catch {
     return null;
   }
   if (!hit) return null;
 
+  // 同时按「读取侧传入的 key」和「实际命中的 key」去 IndexedDB 查元数据
   try {
-    const [data, record] = await Promise.all([
+    const [data, recordPrimary, recordMatched] = await Promise.all([
       hit.arrayBuffer(),
       metaStore.get(key).catch(() => undefined),
+      matchedKey !== key ? metaStore.get(matchedKey).catch(() => undefined) : undefined,
     ]);
-    return { data, costMs: record?.costMs ?? 150 };
+    const record = recordPrimary ?? recordMatched;
+    return {
+      fragment: { data, costMs: record?.costMs ?? 150 },
+      matchedKey,
+    };
   } catch {
     return null;
   }
