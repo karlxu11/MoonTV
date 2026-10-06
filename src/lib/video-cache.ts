@@ -65,7 +65,7 @@ export interface CacheSettings {
 }
 
 export const DEFAULT_CACHE_SETTINGS: CacheSettings = {
-  enabled: true,
+  enabled: false,
   // 默认不设时间上限：暂停后一直往后缓存，直到片尾或触发字节上限淘汰
   horizonSeconds: UNLIMITED_HORIZON_SECONDS,
   maxBytesPerEpisode: 800 * 1024 * 1024,
