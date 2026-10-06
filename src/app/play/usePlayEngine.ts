@@ -2363,13 +2363,6 @@ export function usePlayEngine() {
         setPlayerHost(playerEl);
       }
 
-      artPlayerRef.current.on('control', (state: boolean) => {
-        const el =
-          (artPlayerRef.current?.template?.$player as HTMLElement | undefined) ||
-          playerEl;
-        el?.classList.toggle('moontv-controls-hidden', !state);
-      });
-
       // 监听播放器事件
       artPlayerRef.current.on('ready', () => {
         setError(null);

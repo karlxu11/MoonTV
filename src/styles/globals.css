@@ -117,12 +117,12 @@
   }
 }
 
-/* 播放器内顶栏：随控制栏显隐，锁屏时一并藏起 */
+/* 播放器内顶栏：和底部控制栏同步显隐，锁屏时一并藏起 */
 .art-video-player .moontv-play-header {
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-.art-video-player.moontv-controls-hidden .moontv-play-header,
+.art-video-player:not(.art-control-show):not(.art-hover) .moontv-play-header,
 .art-video-player.art-hide-cursor .moontv-play-header,
 .art-video-player.art-lock .moontv-play-header {
   opacity: 0;
