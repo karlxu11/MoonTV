@@ -24,6 +24,10 @@ export interface SegmentMeta {
   key: string;
   /** 剧集标识 `${source}:${id}:${episodeIndex}`，用于按集淘汰 */
   episodeKey: string;
+  /** 影片标题，用于缓存面板展示 */
+  title?: string;
+  /** 影视源说明文字，用于缓存面板展示 */
+  source?: string;
   /** 片段序号（1 基，便于排查） */
   index: number;
   /** 字节数 */
@@ -464,6 +468,10 @@ export async function getCacheSummary(): Promise<{
 export interface EpisodeCacheStat {
   /** 剧集标识 `${source}:${id}:${episodeIndex}` */
   episodeKey: string;
+  /** 影片标题 */
+  title?: string;
+  /** 影视源展示名称 */
+  source?: string;
   /** 片段数 */
   segments: number;
   /** 占用字节数 */
@@ -483,9 +491,15 @@ export async function getEpisodeCacheStats(): Promise<EpisodeCacheStat[]> {
         stat.segments += 1;
         stat.bytes += record.bytes || 0;
         if (record.lastAccess > stat.lastAccess) stat.lastAccess = record.lastAccess;
+        if (!stat.title && record.title) stat.title = record.title;
+        if (!stat.source && record.source) stat.source = record.source;
       } else {
+        const source = record.source || record.episodeKey.split(':').slice(0, -2).join(':') || '未知来源';
+        const title = record.title || '未知影片';
         grouped.set(record.episodeKey, {
           episodeKey: record.episodeKey,
+          title,
+          source,
           segments: 1,
           bytes: record.bytes || 0,
           lastAccess: record.lastAccess,

@@ -1847,6 +1847,11 @@ export function usePlayEngine() {
         prefetcherRef.current.ensure({
           m3u8Url,
           currentTime,
+          title: videoTitleRef.current || '未知影片',
+          source:
+            detailRef.current?.source_name ||
+            currentSourceRef.current ||
+            '未知来源',
           episodeKey: `${currentSourceRef.current}:${currentIdRef.current}:${currentEpisodeIndexRef.current}`,
           preferredHeight: preferredHeightRef.current,
           ...(horizonSeconds === undefined ? {} : { horizonSeconds }),
@@ -1893,6 +1898,11 @@ export function usePlayEngine() {
         getNextEpisodePrefetcher().ensure({
           m3u8Url: nextUrl,
           currentTime: 0,
+          title: videoTitleRef.current || '未知影片',
+          source:
+            detailRef.current?.source_name ||
+            currentSourceRef.current ||
+            '未知来源',
           episodeKey: `${currentSourceRef.current}:${currentIdRef.current}:${nextIndex}`,
           preferredHeight: preferred,
           horizonSeconds: NEXT_EPISODE_HORIZON_SECONDS,
