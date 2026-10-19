@@ -11,13 +11,13 @@ export interface BangumiCalendarData {
       score: number;
     };
     air_date: string;
-    images: {
+    images?: {
       large: string;
       common: string;
       medium: string;
       small: string;
       grid: string;
-    };
+    } | null;
   }[];
 }
 

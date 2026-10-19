@@ -125,6 +125,7 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
+    '/sw.js',
     '/api/m3u8',
     '/api/image-proxy',
   ];

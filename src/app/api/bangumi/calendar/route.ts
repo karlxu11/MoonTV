@@ -12,13 +12,13 @@ interface BangumiCalendarItem {
     score: number;
   };
   air_date: string;
-  images: {
+  images?: {
     large: string;
     common: string;
     medium: string;
     small: string;
     grid: string;
-  };
+  } | null;
 }
 
 interface BangumiCalendarData {
@@ -32,22 +32,22 @@ function replaceImageUrl(
   data: BangumiCalendarData[],
   imageProxy: string
 ): BangumiCalendarData[] {
-  if (!imageProxy) return data;
   return data.map((day) => ({
     ...day,
     items: (day.items || [])
-      .filter((item) => item.images)
-      .map((item) => {
+      .flatMap((item) => {
+        if (!item?.images) return [];
+
         const replace = (url: string) =>
-          url.replace('https://lain.bgm.tv', imageProxy);
+          imageProxy ? url.replace('https://lain.bgm.tv', imageProxy) : url;
         return {
           ...item,
           images: {
-            large: replace(item.images.large),
-            common: replace(item.images.common),
-            medium: replace(item.images.medium),
-            small: replace(item.images.small),
-            grid: replace(item.images.grid),
+            large: replace(item.images.large || ''),
+            common: replace(item.images.common || ''),
+            medium: replace(item.images.medium || ''),
+            small: replace(item.images.small || ''),
+            grid: replace(item.images.grid || ''),
           },
         };
       }),
